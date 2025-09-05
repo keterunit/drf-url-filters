@@ -58,7 +58,8 @@ class FiltersMixin(object):
                         # If lookup uses contains and is a CSV, needs to apply
                         # contains separately with each value.
 
-                        lookups_with_subquery = ('__contains', '__icontains')
+                        lookups_with_subquery = ('__contains', '__icontains',
+                                                 '__startswith', '__endswith')
                         found = False
                         for lookup_suffix in lookups_with_subquery:
                             if query_filter.endswith(lookup_suffix):
