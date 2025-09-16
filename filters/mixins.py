@@ -59,7 +59,8 @@ class FiltersMixin(object):
                         # contains separately with each value.
 
                         lookups_with_subquery = ('__contains', '__icontains',
-                                                 '__startswith', '__endswith')
+                                                 '__startswith', '__istartswith',
+                                                 '__endswith', '__iendswith')
                         found = False
                         for lookup_suffix in lookups_with_subquery:
                             if query_filter.endswith(lookup_suffix):
