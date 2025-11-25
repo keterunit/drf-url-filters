@@ -24,8 +24,8 @@ class FiltersMixin(object):
         '''
         filters = []
         excludes = []
-        # TODO: excludes_values.
         filters_values = []
+        excludes_values = []
 
         if getattr(self, 'filter_mappings', None) and query_params:
             filter_mappings = self.filter_mappings
@@ -64,8 +64,12 @@ class FiltersMixin(object):
                         found = False
                         for lookup_suffix in lookups_with_subquery:
                             if query_filter.endswith(lookup_suffix):
-                                filters_values.append((query_filter[:-len(lookup_suffix)],
-                                                       (lookup_suffix, transformed_value)))
+                                lookup = (query_filter[:-len(lookup_suffix)],
+                                          (lookup_suffix, transformed_value))
+                                if is_exclude:
+                                    excludes_values.append(lookup)
+                                else:
+                                    filters_values.append(lookup)
                                 found = True
                                 break
                         if found:
@@ -77,7 +81,8 @@ class FiltersMixin(object):
                     else:
                         filters.append((query_filter, transformed_value))
 
-        return dict(filters), dict(excludes), dict(filters_values)
+        return dict(filters), dict(excludes),\
+               dict(filters_values), dict(excludes_values)
 
     def __merge_query_params(self, url_params, query_params):
         '''
@@ -103,11 +108,13 @@ class FiltersMixin(object):
         db_filters = filters[0]
         db_excludes = filters[1]
         db_filters_values = filters[2]
+        db_excludes_values = filters[3]
 
         return {
             'db_filters': db_filters,
             'db_excludes': db_excludes,
             'db_filters_values': db_filters_values,
+            'db_excludes_values': db_excludes_values
         }
 
     def get_queryset(self):

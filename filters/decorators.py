@@ -1,6 +1,19 @@
 from django.db.models import Q
 
 
+def make_query(queryset, method, filters, db_values):
+    query = Q()
+    for key, lookup in db_values.items():
+        lookup_op = lookup[0]
+        # If has `IN` already in query to this key, apply it.
+        if key+'__in' in filters:
+            methodfn = getattr(queryset, method)
+            queryset = methodfn((key+'__in', filters[key+'__in']))
+        # Combine all lookups.
+        for value in lookup[1]:
+            query = query | Q((key + lookup_op, value))
+    return query
+
 def decorate_get_queryset(f):
     def decorated(self):
         queryset = f(self)
@@ -19,15 +32,12 @@ def decorate_get_queryset(f):
         # This dict will hold filter kwargs subqueries to pass in to Django ORM calls.
         db_filters_values = queryset_filters['db_filters_values']
 
-        query = Q()
-        for key, lookup in db_filters_values.items():
-            lookup_op = lookup[0]
-            # If has `IN` already in query to this key, apply it.
-            if key+'__in' in db_filters:
-                queryset = queryset.filter((key+'__in', db_filters[key+'__in']))
-            # Combine all lookups.
-            for value in lookup[1]:
-                query = query | Q((key + lookup_op, value))
+        # This dict will hold exclude kwargs subqueries to pass in to Django ORM calls.
+        db_excludes_values = queryset_filters['db_excludes_values']
 
-        return queryset.filter(query, **db_filters).exclude(**db_excludes)
+        query = make_query(queryset, 'filter', db_filters, db_filters_values)
+        # Same logic as above, but for excludes.
+        query_exclude = make_query(queryset, 'exclude', db_excludes, db_excludes_values)
+
+        return queryset.filter(query, **db_filters).exclude(query_exclude, **db_excludes)
     return decorated
