@@ -1,7 +1,7 @@
 from django.db.models import Q
 
 
-def make_query(queryset, method, filters, db_values):
+def _make_query(queryset, method, filters, db_values):
     query = Q()
     for key, lookup in db_values.items():
         lookup_op = lookup[0]
@@ -14,30 +14,43 @@ def make_query(queryset, method, filters, db_values):
             query = query | Q((key + lookup_op, value))
     return query
 
+
 def decorate_get_queryset(f):
     def decorated(self):
-        queryset = f(self)
         query_params = self.request.query_params
         url_params = self.kwargs
 
-        # get queryset_filters from FiltersMixin
-        queryset_filters = self.get_db_filters(url_params, query_params)
+        # get db_queries from FiltersMixin
+        db_queries = self.get_db_queries(url_params, query_params)
 
-        # This dict will hold filter kwargs to pass in to Django ORM calls.
-        db_filters = queryset_filters['db_filters']
+        result = f(self)
+        first = True
+        for db_query in db_queries:
+            queryset = f(self)
 
-        # This dict will hold exclude kwargs to pass in to Django ORM calls.
-        db_excludes = queryset_filters['db_excludes']
+            # This dict will hold filter kwargs to pass in to Django ORM calls.
+            db_filters = db_query['db_filters']
 
-        # This dict will hold filter kwargs subqueries to pass in to Django ORM calls.
-        db_filters_values = queryset_filters['db_filters_values']
+            # This dict will hold exclude kwargs to pass in to Django ORM calls.
+            db_excludes = db_query['db_excludes']
 
-        # This dict will hold exclude kwargs subqueries to pass in to Django ORM calls.
-        db_excludes_values = queryset_filters['db_excludes_values']
+            # This dict will hold filter kwargs subqueries to pass in to Django ORM calls.
+            db_filters_values = db_query['db_filters_values']
 
-        query = make_query(queryset, 'filter', db_filters, db_filters_values)
-        # Same logic as above, but for excludes.
-        query_exclude = make_query(queryset, 'exclude', db_excludes, db_excludes_values)
+            # This dict will hold exclude kwargs subqueries to pass in to Django ORM calls.
+            db_excludes_values = db_query['db_excludes_values']
 
-        return queryset.filter(query, **db_filters).exclude(query_exclude, **db_excludes)
+            query = _make_query(queryset, 'filter', db_filters, db_filters_values)
+            # Same logic as above, but for excludes.
+            query_exclude = _make_query(queryset, 'exclude', db_excludes, db_excludes_values)
+
+            queryset = queryset.filter(query, **db_filters).exclude(query_exclude, **db_excludes)
+
+            # Join the queries together.
+            if first:
+                result = queryset
+                first = False
+            else:
+                result = result.union(queryset)
+        return result
     return decorated
