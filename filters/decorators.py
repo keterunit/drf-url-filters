@@ -51,6 +51,6 @@ def decorate_get_queryset(f):
                 result = queryset
                 first = False
             else:
-                result = result.union(queryset)
+                result = result | queryset
         return result
     return decorated
